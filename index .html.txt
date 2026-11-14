@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="สแกนโพย LINE">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#10b981">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2310b981'/><path d='M25 35V25h10M65 25h10v10M75 65v10H65M35 75H25V65M20 50h60' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2310b981'/><path d='M25 35V25h10M65 25h10v10M75 65v10H65M35 75H25V65M20 50h60' stroke='white' stroke-width='7' stroke-linecap='round' stroke-linejoin='round' fill='none'/></svg>">
+    <title>สแกนโพยตัวเลข ส่งต่อ LINE</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Prompt & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Prompt', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        line: {
+                            DEFAULT: '#06C755',
+                            hover: '#05b34c',
+                            light: '#e6f9ee',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ป้องกันการเด้งของหน้าจอบนมือถือและปรับแต่ง Scrollbar */
+        body {
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: none;
+        }
+        /* พื้นที่ปลอดภัยสำหรับมือถือรุ่นใหม่ (iPhone Notch / Home Indicator) */
+        .pb-safe {
+            padding-bottom: max(1rem, env(safe-area-inset-bottom));
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex justify-center">
+
+    <!-- Mobile App Container (จำกัดความกว้างให้เหมือนแอปมือถือแนวตั้งแม้เปิดบนจอใหญ่) -->
+    <div class="w-full max-w-md bg-slate-50 min-h-screen shadow-xl flex flex-col relative pb-28">
+
+        <!-- Top App Bar -->
+        <header class="bg-white/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 px-4 h-14 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-sm">
+                    <i data-lucide="scan-line" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base text-slate-900 leading-none">สแกนโพยส่ง LINE</h1>
+                    <p class="text-[11px] text-slate-500 mt-0.5">แปลงลายมือตัวเลขอัตโนมัติ</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <button type="button" onclick="openInstallHelp()" class="flex items-center gap-1 text-xs font-medium text-blue-700 active:bg-blue-100 bg-blue-50 border border-blue-200/80 px-2.5 py-2 rounded-xl transition-colors" title="วิธีแปะแอปลงหน้าจอ">
+                    <i data-lucide="smartphone" class="w-3.5 h-3.5 text-blue-600"></i>
+                    <span>แปะลงจอ</span>
+                </button>
+                <button type="button" onclick="openSettings()" class="flex items-center gap-1 text-xs font-medium text-slate-600 active:bg-slate-200 bg-slate-100 px-2.5 py-2 rounded-xl transition-colors" title="ตั้งค่า API Key">
+                    <i data-lucide="key-round" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    <span>ตั้งค่าคีย์</span>
+                </button>
+                <button type="button" id="btn-reset" onclick="resetApp()" class="hidden items-center gap-1 text-xs font-medium text-slate-600 active:bg-slate-200 bg-slate-100 px-2.5 py-2 rounded-xl transition-colors">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span>เริ่มใหม่</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Toast Notification (เด้งแจ้งเตือนด้านบน) -->
+        <div id="toast" class="fixed top-16 left-1/2 -translate-x-1/2 z-50 transform -translate-y-6 opacity-0 pointer-events-none transition-all duration-300 w-[90%] max-w-sm">
+            <div id="toast-box" class="bg-slate-900/95 backdrop-blur text-white px-4 py-3 rounded-2xl shadow-lg flex items-center gap-2.5 text-sm font-medium">
+                <i id="toast-icon" data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400 shrink-0"></i>
+                <span id="toast-text">คัดลอกข้อความเรียบร้อย!</span>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 px-4 pt-4 space-y-4">
+
+            <!-- Hidden File Inputs for Camera & Gallery -->
+            <input type="file" id="camera-input" accept="image/*" capture="environment" class="hidden">
+            <input type="file" id="gallery-input" accept="image/*" class="hidden">
+
+            <!-- Step 1: Capture / Upload Section -->
+            <section id="upload-section" class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/80">
+                
+                <!-- Empty Upload Buttons (Thumb-friendly Big Buttons) -->
+                <div id="capture-buttons" class="space-y-3">
+                    <div class="text-center py-2">
+                        <div class="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-2.5 border border-emerald-100">
+                            <i data-lucide="camera" class="w-7 h-7"></i>
+                        </div>
+                        <h2 class="font-semibold text-base text-slate-800">เลือกรูปโพยตัวเลข</h2>
+                        <p class="text-xs text-slate-500 mt-0.5">ถ่ายรูปจากกระดาษจด หรือเลือกรูปจากอัลบั้ม</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3 pt-1">
+                        <!-- ปุ่มถ่ายรูปขนาดใหญ่ -->
+                        <button type="button" onclick="document.getElementById('camera-input').click()" class="flex flex-col items-center justify-center gap-2 bg-emerald-600 active:bg-emerald-700 text-white p-4 rounded-2xl shadow-sm transition-transform active:scale-[0.98]">
+                            <i data-lucide="camera" class="w-7 h-7"></i>
+                            <span class="font-semibold text-sm">ถ่ายรูปโพย</span>
+                        </button>
+
+                        <!-- ปุ่มเลือกรูปจากอัลบั้มขนาดใหญ่ -->
+                        <button type="button" onclick="document.getElementById('gallery-input').click()" class="flex flex-col items-center justify-center gap-2 bg-blue-600 active:bg-blue-700 text-white p-4 rounded-2xl shadow-sm transition-transform active:scale-[0.98]">
+                            <i data-lucide="image" class="w-7 h-7"></i>
+                            <span class="font-semibold text-sm">เลือกจากอัลบั้ม</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Image Preview Box -->
+                <div id="preview-box" class="hidden space-y-3">
+                    <div class="relative rounded-2xl overflow-hidden bg-slate-900 border border-slate-200 flex items-center justify-center max-h-64">
+                        <img id="preview-img" src="" alt="รูปโพยตัวเลข" class="max-h-64 w-auto object-contain">
+                        <button type="button" onclick="document.getElementById('gallery-input').click()" class="absolute bottom-2.5 right-2.5 bg-black/70 backdrop-blur-sm text-white text-xs font-medium px-3 py-2 rounded-xl flex items-center gap-1.5 active:scale-95">
+                            <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+                            <span>เปลี่ยนรูป</span>
+                        </button>
+                    </div>
+
+                    <!-- ปุ่มกดแปลงตัวเลขขนาดใหญ่ -->
+                    <button type="button" id="btn-process" onclick="processImage()" class="w-full py-4 bg-gradient-to-r from-emerald-600 to-teal-600 active:from-emerald-700 active:to-teal-700 text-white font-bold text-base rounded-2xl shadow-md flex items-center justify-center gap-2 transition-transform active:scale-[0.98]">
+                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                        <span>แปลงเป็นตัวเลขทันที</span>
+                    </button>
+                </div>
+            </section>
+
+            <!-- Loading State -->
+            <section id="loading-section" class="hidden bg-white rounded-3xl p-8 shadow-xs border border-slate-200/80 text-center space-y-3">
+                <div class="relative w-14 h-14 mx-auto">
+                    <div class="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
+                    <div class="absolute inset-0 border-4 border-emerald-600 rounded-full border-t-transparent animate-spin"></div>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-base text-slate-800">กำลังอ่านลายมือและจัดกลุ่ม...</h3>
+                    <p class="text-xs text-slate-500 mt-1">ระบบกำลังแยกเลข 3 ตัว และ 2 ตัว พร้อมราคา</p>
+                </div>
+            </section>
+
+            <!-- Error State -->
+            <section id="error-section" class="hidden bg-red-50 border border-red-200 rounded-3xl p-5 text-center space-y-3">
+                <div class="w-11 h-11 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto">
+                    <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h3 class="font-semibold text-sm text-red-800">ไม่สามารถอ่านภาพได้</h3>
+                    <p id="error-text" class="text-xs text-red-600 mt-1">กรุณาตรวจสอบการเชื่อมต่อและลองใหม่อีกครั้ง</p>
+                </div>
+                <button type="button" onclick="processImage()" class="w-full py-3 bg-red-600 text-white text-sm font-semibold rounded-xl active:bg-red-700">
+                    ลองใหม่อีกครั้ง
+                </button>
+            </section>
+
+            <!-- Results Section -->
+            <section id="results-section" class="hidden space-y-4">
+                
+                <!-- Note Badge (ถ้ามีชื่อคนหรือหมายเหตุในภาพ) -->
+                <div id="note-banner" class="hidden bg-amber-50 border border-amber-200/80 rounded-2xl px-4 py-2.5 flex items-start gap-2 text-xs text-amber-800">
+                    <i data-lucide="sticky-note" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                    <span id="note-text"></span>
+                </div>
+
+                <!-- Summary Money Box (สรุปยอดเงินแยก 3 ตัว / 2 ตัว และยอดรวมทั้งหมด) -->
+                <div id="summary-box" class="bg-gradient-to-br from-slate-800 to-slate-900 text-white rounded-3xl p-4 shadow-md space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-700/80 pb-2">
+                        <span class="font-bold text-sm flex items-center gap-1.5 text-emerald-400">
+                            <i data-lucide="calculator" class="w-4 h-4"></i>
+                            สรุปยอดเงินอัตโนมัติ
+                        </span>
+                        <span class="text-[11px] text-slate-400">คำนวณตามราคาที่ระบุ</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-3">
+                            <div class="text-[11px] text-purple-300 font-medium">ยอดเลข 3 ตัว (<span id="count-3d">0</span> ตัว)</div>
+                            <div class="font-mono font-bold text-lg text-white mt-0.5"><span id="sum-3d">0</span> <span class="text-xs font-sans font-normal text-slate-400">บ.</span></div>
+                        </div>
+                        <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-3">
+                            <div class="text-[11px] text-blue-300 font-medium">ยอดเลข 2 ตัว (<span id="count-2d">0</span> ตัว)</div>
+                            <div class="font-mono font-bold text-lg text-white mt-0.5"><span id="sum-2d">0</span> <span class="text-xs font-sans font-normal text-slate-400">บ.</span></div>
+                        </div>
+                    </div>
+                    <div class="bg-emerald-500/15 border border-emerald-500/30 rounded-2xl px-3.5 py-2.5 flex items-center justify-between">
+                        <span class="text-xs font-semibold text-emerald-300">ยอดรวมเงินทั้งหมด</span>
+                        <span class="font-mono font-bold text-xl text-emerald-400"><span id="sum-total">0</span> <span class="text-xs font-sans font-normal text-emerald-200">บาท</span></span>
+                    </div>
+                </div>
+
+                <!-- Individual Group Cards (คัดลอกแยกทีละชุดได้ง่ายด้วยปุ่มใหญ่) -->
+                <div class="space-y-3">
+                    <div class="flex items-center justify-between px-1">
+                        <h2 class="font-bold text-sm text-slate-700 flex items-center gap-1.5">
+                            <i data-lucide="layers" class="w-4 h-4 text-emerald-600"></i>
+                            รายการแยกตามชุด (กดคัดลอกทีละชุดได้)
+                        </h2>
+                    </div>
+                    <div id="groups-list" class="space-y-3">
+                        <!-- Group cards injected dynamically -->
+                    </div>
+                </div>
+
+                <!-- Editable Master Textarea (แก้ไขข้อความก่อนคัดลอกได้) -->
+                <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/80 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <label for="master-editor" class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
+                            <i data-lucide="edit-3" class="w-4 h-4 text-blue-600"></i>
+                            ข้อความรวม (แตะเพื่อแก้ไขได้)
+                        </label>
+                        <span class="text-[11px] text-slate-400">แก้ตัวเลขหรือราคาได้ทันที</span>
+                    </div>
+                    <textarea id="master-editor" rows="8" oninput="recalculateFromEditor()" class="w-full font-mono text-base bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 rounded-2xl p-3.5 text-slate-900 leading-relaxed outline-none" placeholder="ผลลัพธ์ทั้งหมดจะแสดงที่นี่..."></textarea>
+                </div>
+
+            </section>
+
+            <!-- Quick Guide (แสดงเฉพาะตอนยังไม่เริ่ม) -->
+            <section id="guide-section" class="bg-white/80 rounded-3xl p-4 border border-slate-200/60 space-y-2.5 text-xs text-slate-600">
+                <div class="font-semibold text-slate-800 flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-emerald-600"></i>
+                    รูปแบบการจัดเรียงอัตโนมัติ:
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-0.5">
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        <div class="font-semibold text-purple-700 mb-1">ชุดเลข 3 ตัว</div>
+                        <pre class="font-mono text-[11px] text-slate-700 leading-snug">341
+841
+50*50</pre>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        <div class="font-semibold text-blue-700 mb-1">ชุดเลข 2 ตัว</div>
+                        <pre class="font-mono text-[11px] text-slate-700 leading-snug">85 58 03 30
+100*100</pre>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+
+        <!-- Fixed Bottom Action Bar (ปุ่มนิ้วโป้งด้านล่างสำหรับคัดลอกและส่งต่อ LINE) -->
+        <div id="bottom-bar" class="hidden fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 pt-3 pb-safe z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+            <div class="grid grid-cols-2 gap-2.5">
+                <button type="button" onclick="copyAllAndNotify()" class="py-3.5 px-3 bg-slate-800 active:bg-slate-900 text-white font-semibold text-sm rounded-2xl flex items-center justify-center gap-1.5 shadow-xs transition-transform active:scale-[0.98]">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                    <span>คัดลอกทั้งหมด</span>
+                </button>
+                <button type="button" onclick="shareToLine()" class="py-3.5 px-3 bg-line active:bg-line-hover text-white font-bold text-sm rounded-2xl flex items-center justify-center gap-1.5 shadow-sm transition-transform active:scale-[0.98]">
+                    <i data-lucide="send" class="w-4 h-4"></i>
+                    <span>ส่งต่อเข้า LINE</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Modal ตั้งค่า API Key สำหรับใช้งานบนมือถือ -->
+        <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-4">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+                        <i data-lucide="key-round" class="w-5 h-5 text-emerald-600"></i>
+                        ตั้งค่า Gemini API Key
+                    </h3>
+                    <button type="button" onclick="closeSettings()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <p class="text-xs text-slate-600 leading-relaxed">
+                    นำคีย์ฟรีจาก <span class="font-semibold text-slate-800">Google AI Studio</span> มาวางที่นี่ ระบบจะบันทึกไว้ในมือถือเครื่องนี้เครื่องเดียวเพื่อใช้สแกนรูปภาพ
+                </p>
+                <div>
+                    <input type="password" id="api-key-input" placeholder="วางรหัส AIzaSy... ที่นี่" class="w-full font-mono text-sm bg-slate-50 border border-slate-300 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 rounded-2xl p-3 text-slate-900 outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                    <button type="button" onclick="closeSettings()" class="py-3 bg-slate-100 text-slate-700 font-semibold text-sm rounded-2xl active:bg-slate-200">
+                        ยกเลิก
+                    </button>
+                    <button type="button" onclick="saveApiKey()" class="py-3 bg-emerald-600 text-white font-semibold text-sm rounded-2xl active:bg-emerald-700">
+                        บันทึกคีย์
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal แนะนำวิธีสร้างลิงก์และแปะแอปไว้ที่หน้าจอมือถือ -->
+        <div id="install-modal" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-5 shadow-2xl space-y-3.5 max-h-[85vh] overflow-y-auto">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-bold text-base text-slate-900 flex items-center gap-2">
+                        <i data-lucide="smartphone" class="w-5 h-5 text-blue-600"></i>
+                        วิธีแปะแอปไว้ที่หน้าจอมือถือ
+                    </h3>
+                    <button type="button" onclick="closeInstallHelp()" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-xl">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div class="space-y-2.5 text-xs text-slate-600 leading-relaxed">
+                    <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200/80">
+                        <div class="font-bold text-slate-800 mb-1">ขั้นที่ 1: สร้างลิงก์เว็บฟรี (ทำครั้งเดียว)</div>
+                        <p>ดาวน์โหลดไฟล์โค้ดนี้ แล้วนำไปโยนใส่เว็บ <span class="font-semibold text-blue-600">tiiny.host</span> หรือ <span class="font-semibold text-blue-600">netlify.com/drop</span> จะได้ลิงก์ส่วนตัวทันที</p>
+                    </div>
+                    <div class="bg-blue-50/70 p-3 rounded-2xl border border-blue-100">
+                        <div class="font-bold text-blue-900 mb-1">ขั้นที่ 2: แปะลงหน้าจอ iPhone (Safari)</div>
+                        <p>เปิดลิงก์ใน Safari &rarr; กดปุ่ม <b>แชร์ (สี่เหลี่ยมมีลูกศรชี้ขึ้น)</b> ด้านล่าง &rarr; เลือก <b>"เพิ่มไปยังหน้าจอโฮม"</b></p>
+                    </div>
+                    <div class="bg-emerald-50/70 p-3 rounded-2xl border border-emerald-100">
+                        <div class="font-bold text-emerald-900 mb-1">ขั้นที่ 2: แปะลงหน้าจอ Android (Chrome)</div>
+                        <p>เปิดลิงก์ใน Chrome &rarr; กดปุ่ม <b>จุด 3 จุด (⋮)</b> มุมขวาบน &rarr; เลือก <b>"เพิ่มลงในหน้าจอหลัก"</b></p>
+                    </div>
+                </div>
+                <button type="button" onclick="closeInstallHelp()" class="w-full py-3 bg-slate-900 text-white font-semibold text-sm rounded-2xl active:bg-slate-800">
+                    เข้าใจแล้ว
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // เริ่มต้นใช้งานไอคอน Lucide
+        lucide.createIcons();
+
+        // ตัวแปรเก็บสถานะภาพและข้อมูล
+        let currentBase64 = null;
+        let currentMimeType = null;
+        let groupTexts = [];
+
+        // อ้างอิง DOM Elements
+        const cameraInput = document.getElementById('camera-input');
+        const galleryInput = document.getElementById('gallery-input');
+        const captureButtons = document.getElementById('capture-buttons');
+        const previewBox = document.getElementById('preview-box');
+        const previewImg = document.getElementById('preview-img');
+        const btnReset = document.getElementById('btn-reset');
+        const btnProcess = document.getElementById('btn-process');
+
+        const guideSection = document.getElementById('guide-section');
+        const loadingSection = document.getElementById('loading-section');
+        const errorSection = document.getElementById('error-section');
+        const errorText = document.getElementById('error-text');
+        const resultsSection = document.getElementById('results-section');
+        const groupsList = document.getElementById('groups-list');
+        const masterEditor = document.getElementById('master-editor');
+        const bottomBar = document.getElementById('bottom-bar');
+        const noteBanner = document.getElementById('note-banner');
+        const noteText = document.getElementById('note-text');
+
+        // รับไฟล์จากการถ่ายรูปหรือเลือกอัลบั้ม
+        cameraInput.addEventListener('change', (e) => handleImageSelect(e.target.files[0]));
+        galleryInput.addEventListener('change', (e) => handleImageSelect(e.target.files[0]));
+
+        function handleImageSelect(file) {
+            if (!file) return;
+            if (!file.type.startsWith('image/')) {
+                showToast('กรุณาเลือกไฟล์รูปภาพเท่านั้น', true);
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // ย่อขนาดภาพให้เหมาะสมกับมือถือเพื่อให้ส่ง API ได้เร็วและแม่นยำ
+                    const MAX_SIZE = 1500;
+                    let w = img.width;
+                    let h = img.height;
+
+                    if (w > MAX_SIZE || h > MAX_SIZE) {
+                        if (w > h) {
+                            h = Math.round((h * MAX_SIZE) / w);
+                            w = MAX_SIZE;
+                        } else {
+                            w = Math.round((w * MAX_SIZE) / h);
+                            h = MAX_SIZE;
+                        }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = w;
+                    canvas.height = h;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, w, h);
+
+                    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                    currentMimeType = 'image/jpeg';
+                    currentBase64 = dataUrl.split(',')[1];
+
+                    // อัปเดตหน้าจอแสดงตัวอย่างรูป
+                    previewImg.src = dataUrl;
+                    captureButtons.classList.add('hidden');
+                    previewBox.classList.remove('hidden');
+                    btnReset.classList.remove('hidden');
+                    btnReset.classList.add('inline-flex');
+                    guideSection.classList.add('hidden');
+
+                    // ซ่อนผลลัพธ์เก่า (ถ้ามี)
+                    resultsSection.classList.add('hidden');
+                    errorSection.classList.add('hidden');
+                    bottomBar.classList.add('hidden');
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // รีเซ็ตแอปเพื่อเริ่มถ่ายรูปใหม่
+        function resetApp() {
+            currentBase64 = null;
+            currentMimeType = null;
+            groupTexts = [];
+            cameraInput.value = '';
+            galleryInput.value = '';
+
+            captureButtons.classList.remove('hidden');
+            previewBox.classList.add('hidden');
+            previewImg.src = '';
+            btnReset.classList.add('hidden');
+            btnReset.classList.remove('inline-flex');
+
+            loadingSection.classList.add('hidden');
+            errorSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            bottomBar.classList.add('hidden');
+            guideSection.classList.remove('hidden');
+            masterEditor.value = '';
+            groupsList.innerHTML = '';
+        }
+
+        // ส่งภาพให้ Gemini AI วิเคราะห์ตัวเลขและปีกกา
+        async function processImage() {
+            if (!currentBase64) return;
+
+            // ดึง API Key ที่บันทึกไว้ในเครื่อง (หรือใช้ค่าเริ่มต้นในสภาพแวดล้อมทดสอบ)
+            const savedKey = localStorage.getItem('gemini_api_key') || "";
+            const apiKey = savedKey.trim();
+
+            // สลับหน้าจอเป็นกำลังโหลด
+            btnProcess.disabled = true;
+            errorSection.classList.add('hidden');
+            resultsSection.classList.add('hidden');
+            bottomBar.classList.add('hidden');
+            loadingSection.classList.remove('hidden');
+
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+            const systemInstruction = `คุณคือผู้ช่วยอ่านลายมือโพยตัวเลขภาษาไทยจากรูปภาพ เพื่อแปลงเป็นข้อความสำหรับส่งต่อใน LINE
+หน้าที่ของคุณคือวิเคราะห์เส้นปีกกา (bracket) หรือการจัดกลุ่มตัวเลขในภาพ และจับคู่กับราคาที่เขียนกำกับไว้ด้านข้าง
+
+กฎการอ่านและจัดกลุ่มอย่างเคร่งครัด:
+1. สังเกตเส้นปีกกาที่รวบตัวเลขเข้าด้วยกัน และดูราคาที่ชี้ไป (เช่น 10.-, 20x20, 50x50, 100*100)
+2. แยกประเภทกลุ่มตามจำนวนหลักของตัวเลข:
+   - "3_digit": สำหรับกลุ่มเลข 3 หลัก (เช่น 647, 341, 856)
+   - "2_digit": สำหรับกลุ่มเลข 2 หลัก (เช่น 47, 85, 03, 06) **สำคัญมาก: ต้องรักษาเลข 0 นำหน้าไว้เสมอ (เช่น 03, 06, 02, 01)**
+3. การจัดรูปแบบราคา (price):
+   - หากมีเครื่องหมายคูณ เช่น "50x50" หรือ "100×100" ให้แปลงเครื่องหมาย x หรือ × เป็นดอกจัน * เช่น "50*50", "100*100"
+   - หากมีแค่ตัวเลขเดียว เช่น "10.-" หรือ "10" ให้ใส่เฉพาะตัวเลข "10"
+4. อ่านตัวเลขให้ครบทุกตัวตามลำดับจากบนลงล่าง ห้ามข้ามและห้ามเดาตัวเลขที่ไม่มีในภาพ
+5. หากมีชื่อคน วันที่ หรือหมายเหตุหัวกระดาษ ให้สรุปสั้นๆ ในฟิลด์ note`;
+
+            const payload = {
+                contents: [
+                    {
+                        role: "user",
+                        parts: [
+                            { text: "ช่วยอ่านตัวเลขทั้งหมดในภาพนี้ แยกชุดเลข 3 ตัว และชุดเลข 2 ตัว ตามเส้นปีกกาและราคาที่กำกับไว้ให้ครบถ้วนถูกต้อง" },
+                            {
+                                inlineData: {
+                                    mimeType: currentMimeType,
+                                    data: currentBase64
+                                }
+                            }
+                        ]
+                    }
+                ],
+                systemInstruction: {
+                    parts: [{ text: systemInstruction }]
+                },
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            note: {
+                                type: "STRING",
+                                description: "ชื่อหัวกระดาษ วันที่ หรือหมายเหตุสั้นๆ ที่พบในภาพ (ถ้าไม่มีให้ใส่ค่าว่าง)"
+                            },
+                            groups: {
+                                type: "ARRAY",
+                                description: "รายการชุดตัวเลขที่แยกตามปีกกาและราคา",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        label: {
+                                            type: "STRING",
+                                            description: "คำอธิบายชุด เช่น ชุด 3 ตัว (50*50) หรือ ชุด 2 ตัว (100*100)"
+                                        },
+                                        digitType: {
+                                            type: "STRING",
+                                            enum: ["3_digit", "2_digit"],
+                                            description: "ประเภทจำนวนหลักของตัวเลข"
+                                        },
+                                        numbers: {
+                                            type: "ARRAY",
+                                            items: { type: "STRING" },
+                                            description: "รายการตัวเลขเรียงจากบนลงล่าง รักษาเลข 0 ด้านหน้าไว้"
+                                        },
+                                        price: {
+                                            type: "STRING",
+                                            description: "ราคาของชุดนี้ เช่น 10, 20*20, 100*100"
+                                        }
+                                    },
+                                    required: ["label", "digitType", "numbers", "price"]
+                                }
+                            }
+                        },
+                        required: ["groups"]
+                    }
+                }
+            };
+
+            try {
+                const response = await fetchWithBackoff(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+                const rawJson = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (!rawJson) {
+                    throw new Error("ไม่ได้รับข้อมูลจากระบบ AI");
+                }
+
+                const data = JSON.parse(rawJson);
+                renderResults(data);
+
+            } catch (err) {
+                loadingSection.classList.add('hidden');
+                errorSection.classList.remove('hidden');
+                const msg = err.message || "";
+                if (msg.includes("API key") || msg.includes("400") || msg.includes("403")) {
+                    errorText.textContent = "กรุณากดปุ่ม 'ตั้งค่าคีย์' ด้านบนขวา เพื่อใส่ Gemini API Key ก่อนใช้งาน";
+                } else {
+                    errorText.textContent = msg || "เกิดข้อผิดพลาดในการเชื่อมต่อ กรุณาลองใหม่";
+                }
+            } finally {
+                btnProcess.disabled = false;
+            }
+        }
+
+        // จัดการหน้าต่างตั้งค่า API Key
+        function openSettings() {
+            const modal = document.getElementById('settings-modal');
+            const input = document.getElementById('api-key-input');
+            input.value = localStorage.getItem('gemini_api_key') || '';
+            modal.classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function saveApiKey() {
+            const val = document.getElementById('api-key-input').value.trim();
+            if (val) {
+                localStorage.setItem('gemini_api_key', val);
+                showToast('บันทึก API Key ลงในเครื่องเรียบร้อยแล้ว');
+            } else {
+                localStorage.removeItem('gemini_api_key');
+                showToast('ลบ API Key ออกจากเครื่องแล้ว');
+            }
+            closeSettings();
+        }
+
+        function openInstallHelp() {
+            document.getElementById('install-modal').classList.remove('hidden');
+        }
+
+        function closeInstallHelp() {
+            document.getElementById('install-modal').classList.add('hidden');
+        }
+
+        // ระบบเรียก API พร้อม Exponential Backoff
+        async function fetchWithBackoff(url, options, retries = 4) {
+            let delay = 1000;
+            for (let i = 0; i < retries; i++) {
+                try {
+                    const res = await fetch(url, options);
+                    if (res.ok) return res;
+                    if (res.status === 429 || res.status >= 500) {
+                        await new Promise(r => setTimeout(r, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    const errBody = await res.json().catch(() => ({}));
+                    throw new Error(errBody.error?.message || `เกิดข้อผิดพลาด (${res.status})`);
+                } catch (e) {
+                    if (i === retries - 1) throw e;
+                    await new Promise(r => setTimeout(r, delay));
+                    delay *= 2;
+                }
+            }
+        }
+
+        // แสดงผลลัพธ์แต่ละชุดและกล่องแก้ไขรวม
+        function renderResults(data) {
+            loadingSection.classList.add('hidden');
+            resultsSection.classList.remove('hidden');
+            bottomBar.classList.remove('hidden');
+
+            groupsList.innerHTML = '';
+            groupTexts = [];
+
+            // แสดงหมายเหตุถ้ามี
+            if (data.note && data.note.trim() !== '') {
+                noteText.textContent = `ข้อมูลในภาพ: ${data.note}`;
+                noteBanner.classList.remove('hidden');
+            } else {
+                noteBanner.classList.add('hidden');
+            }
+
+            if (!data.groups || data.groups.length === 0) {
+                groupsList.innerHTML = `<div class="bg-white p-6 rounded-2xl text-center text-sm text-slate-500 border border-slate-200">ไม่พบตัวเลขในภาพ กรุณาลองถ่ายให้ชัดเจนขึ้น</div>`;
+                masterEditor.value = '';
+                return;
+            }
+
+            const allBlocks = [];
+
+            data.groups.forEach((group, idx) => {
+                // จัดรูปแบบตามเงื่อนไขที่กำหนด:
+                // - เลข 3 ตัว: ขึ้นบรรทัดใหม่ทีละตัว แล้วตามด้วยราคาบรรทัดล่างสุด
+                // - เลข 2 ตัว: เรียงในบรรทัดเดียวคั่นด้วยเว้นวรรค แล้วตามด้วยราคาบรรทัดล่างสุด
+                let formattedNumbers = '';
+                if (group.digitType === '3_digit') {
+                    formattedNumbers = group.numbers.join('\n');
+                } else {
+                    formattedNumbers = group.numbers.join(' ');
+                }
+
+                const cleanPrice = (group.price || '').replace(/[xX×]/g, '*').trim();
+                const blockString = cleanPrice ? `${formattedNumbers}\n${cleanPrice}` : formattedNumbers;
+
+                allBlocks.push(blockString);
+                groupTexts.push(blockString);
+
+                // สร้างการ์ดสำหรับแต่ละชุด พร้อมปุ่มคัดลอกขนาดใหญ่กดง่ายด้วยนิ้วเดียว
+                const isThreeDigit = group.digitType === '3_digit';
+                const tagClass = isThreeDigit 
+                    ? 'bg-purple-100 text-purple-700 border-purple-200' 
+                    : 'bg-blue-100 text-blue-700 border-blue-200';
+                const tagText = isThreeDigit ? 'เลข 3 ตัว' : 'เลข 2 ตัว';
+
+                const card = document.createElement('div');
+                card.className = 'bg-white rounded-3xl p-4 shadow-xs border border-slate-200/90 space-y-3';
+                card.innerHTML = `
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold px-2.5 py-1 rounded-lg border ${tagClass}">${tagText}</span>
+                            <span class="text-xs font-medium text-slate-600">${escapeHtml(group.label || `ชุดที่ ${idx + 1}`)}</span>
+                        </div>
+                        <span class="text-xs text-slate-400 font-medium">${group.numbers.length} ตัว</span>
+                    </div>
+
+                    <pre class="font-mono text-base bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 text-slate-900 whitespace-pre-wrap select-all leading-relaxed">${escapeHtml(blockString)}</pre>
+
+                    <button type="button" onclick="copyGroup(${idx}, this)" class="w-full py-3 bg-emerald-50 active:bg-emerald-100 text-emerald-700 border border-emerald-200 font-semibold text-sm rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]">
+                        <i data-lucide="copy" class="w-4 h-4"></i>
+                        <span>คัดลอกชุดนี้ (${tagText})</span>
+                    </button>
+                `;
+                groupsList.appendChild(card);
+            });
+
+            // รวมทุกชุดใส่ในกล่องข้อความรวม คั่นด้วยบรรทัดว่าง
+            masterEditor.value = allBlocks.join('\n\n');
+            recalculateFromEditor();
+            lucide.createIcons();
+
+            // เลื่อนหน้าจอลงมาที่ส่วนผลลัพธ์อย่างนุ่มนวล
+            setTimeout(() => {
+                resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 150);
+        }
+
+        // คำนวณยอดเงินจากข้อความในกล่องแก้ไขรวม (รองรับการแก้ตัวเลขหรือราคาสดๆ)
+        function recalculateFromEditor() {
+            const rawText = masterEditor.value.trim();
+            let sum3D = 0, count3D = 0;
+            let sum2D = 0, count2D = 0;
+
+            if (rawText) {
+                // แยกเป็นชุดๆ ตามบรรทัดว่าง
+                const blocks = rawText.split(/\n\s*\n/);
+                blocks.forEach(block => {
+                    const lines = block.trim().split('\n').map(l => l.trim()).filter(Boolean);
+                    if (lines.length === 0) return;
+
+                    let pricePerNumber = 0;
+                    let numberTokens = [];
+
+                    // ตรวจสอบบรรทัดสุดท้ายว่าเป็นราคาหรือไม่ (เช่น 50*50, 100*100*50, 10)
+                    const lastLine = lines[lines.length - 1];
+                    const isLastLinePrice = lines.length > 1 && (
+                        lastLine.includes('*') || 
+                        /[xX×]/.test(lastLine) || 
+                        !/^\d{2,3}(\s+\d{2,3})*$/.test(lastLine)
+                    );
+
+                    if (isLastLinePrice) {
+                        const cleanPriceStr = lastLine.replace(/[xX×]/g, '*');
+                        const parts = cleanPriceStr.split('*');
+                        parts.forEach(p => {
+                            const num = parseFloat(p.replace(/[^\d.]/g, ''));
+                            if (!isNaN(num)) pricePerNumber += num;
+                        });
+                        for (let i = 0; i < lines.length - 1; i++) {
+                            const tokens = lines[i].split(/\s+/).filter(Boolean);
+                            numberTokens.push(...tokens);
+                        }
+                    } else {
+                        // กรณีไม่มีราคาบรรทัดล่าง ให้นับเฉพาะจำนวนตัวเลข
+                        lines.forEach(line => {
+                            const tokens = line.split(/\s+/).filter(Boolean);
+                            numberTokens.push(...tokens);
+                        });
+                    }
+
+                    numberTokens.forEach(token => {
+                        const digitsOnly = token.replace(/\D/g, '');
+                        if (digitsOnly.length === 3) {
+                            count3D++;
+                            sum3D += pricePerNumber;
+                        } else if (digitsOnly.length === 2) {
+                            count2D++;
+                            sum2D += pricePerNumber;
+                        }
+                    });
+                });
+            }
+
+            const total = sum3D + sum2D;
+            document.getElementById('count-3d').textContent = count3D.toLocaleString();
+            document.getElementById('sum-3d').textContent = sum3D.toLocaleString();
+            document.getElementById('count-2d').textContent = count2D.toLocaleString();
+            document.getElementById('sum-2d').textContent = sum2D.toLocaleString();
+            document.getElementById('sum-total').textContent = total.toLocaleString();
+        }
+
+        // ฟังก์ชันคัดลอกข้อความลง Clipboard (รองรับทั้งมือถือและ iFrame)
+        function copyTextToClipboard(text) {
+            if (!text) return false;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            textarea.style.top = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            let ok = false;
+            try {
+                ok = document.execCommand('copy');
+            } catch (err) {
+                ok = false;
+            }
+            document.body.removeChild(textarea);
+            return ok;
+        }
+
+        // คัดลอกเฉพาะชุดที่เลือก
+        function copyGroup(index, btn) {
+            const text = groupTexts[index];
+            if (copyTextToClipboard(text)) {
+                showToast(`คัดลอกชุดที่ ${index + 1} เรียบร้อยแล้ว!`);
+                
+                const originalHtml = btn.innerHTML;
+                btn.classList.remove('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+                btn.classList.add('bg-emerald-600', 'text-white', 'border-emerald-600');
+                btn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i><span>คัดลอกแล้ว!</span>`;
+                lucide.createIcons();
+
+                setTimeout(() => {
+                    btn.classList.add('bg-emerald-50', 'text-emerald-700', 'border-emerald-200');
+                    btn.classList.remove('bg-emerald-600', 'text-white', 'border-emerald-600');
+                    btn.innerHTML = originalHtml;
+                    lucide.createIcons();
+                }, 1600);
+            }
+        }
+
+        // คัดลอกข้อความทั้งหมดจากกล่องแก้ไขรวม
+        function copyAllAndNotify() {
+            const text = masterEditor.value.trim();
+            if (!text) {
+                showToast('ไม่มีข้อความให้คัดลอก', true);
+                return false;
+            }
+            if (copyTextToClipboard(text)) {
+                showToast('คัดลอกข้อความทั้งหมดแล้ว นำไปวางใน LINE ได้เลย!');
+                return true;
+            }
+            return false;
+        }
+
+        // คัดลอกข้อความทั้งหมดพร้อมเปิดแอป LINE เพื่อส่งต่อทันที
+        function shareToLine() {
+            const text = masterEditor.value.trim();
+            if (!text) {
+                showToast('ไม่มีข้อความสำหรับส่งต่อ', true);
+                return;
+            }
+
+            // คัดลอกเก็บไว้ใน Clipboard ก่อนเสมอ เผื่อผู้ใช้เลือกห้องแชทเอง
+            copyTextToClipboard(text);
+            showToast('กำลังเปิด LINE พร้อมข้อความ...');
+
+            // ใช้ LINE URL Scheme เพื่อเปิดหน้าเลือกเพื่อน/กลุ่มใน LINE พร้อมข้อความอัตโนมัติ
+            const encodedText = encodeURIComponent(text);
+            const lineShareUrl = `https://line.me/R/share?text=${encodedText}`;
+            
+            setTimeout(() => {
+                window.open(lineShareUrl, '_blank');
+            }, 350);
+        }
+
+        // แสดงแถบแจ้งเตือนด้านบน
+        let toastTimer;
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            const toastBox = document.getElementById('toast-box');
+            const toastText = document.getElementById('toast-text');
+            const toastIcon = document.getElementById('toast-icon');
+
+            toastText.textContent = message;
+            if (isError) {
+                toastBox.classList.remove('bg-slate-900/95');
+                toastBox.classList.add('bg-red-600/95');
+                toastIcon.setAttribute('data-lucide', 'alert-circle');
+                toastIcon.classList.remove('text-emerald-400');
+                toastIcon.classList.add('text-white');
+            } else {
+                toastBox.classList.remove('bg-red-600/95');
+                toastBox.classList.add('bg-slate-900/95');
+                toastIcon.setAttribute('data-lucide', 'check-circle-2');
+                toastIcon.classList.remove('text-white');
+                toastIcon.classList.add('text-emerald-400');
+            }
+            lucide.createIcons();
+
+            toast.classList.remove('-translate-y-6', 'opacity-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.add('-translate-y-6', 'opacity-0');
+            }, 2600);
+        }
+
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
